@@ -28,7 +28,8 @@ namespace Total.CLI
 {
     public class cli
     {
-        private static bool cliDebugLevel1, cliDebugLevel2, cliDebugLevel3, cliDefinitionsLoaded;
+        private static bool cliDefinitionsLoaded;
+        private static byte cliDebugLevel = 0;
         private static char secretMark = '#';
         private static string cliSwitchIdentifier;
         private static Regex rgxAllowAny;
@@ -55,7 +56,7 @@ namespace Total.CLI
         }
         private static void WriteDebugLevel1(string Message)
         {
-            if (!cliDebugLevel1 & !cliDebugLevel2) { return; }
+            if (cliDebugLevel < 1) { return; }
             ConsoleColor bgc = Console.BackgroundColor;
             ConsoleColor fgc = Console.ForegroundColor;
             Console.BackgroundColor = ConsoleColor.Black;
@@ -66,7 +67,7 @@ namespace Total.CLI
         }
         private static void WriteDebugLevel2(string Message)
         {
-            if (!cliDebugLevel2) { return; }
+            if (cliDebugLevel < 2) { return; }
             ConsoleColor bgc = Console.BackgroundColor;
             ConsoleColor fgc = Console.ForegroundColor;
             Console.BackgroundColor = ConsoleColor.Black;
@@ -77,10 +78,11 @@ namespace Total.CLI
         }
         private static void WriteDebugLevel3(string Message)
         {
+            if (cliDebugLevel < 3) { return; }
             ConsoleColor bgc = Console.BackgroundColor;
             ConsoleColor fgc = Console.ForegroundColor;
             Console.BackgroundColor = ConsoleColor.Black;
-            Console.ForegroundColor = ConsoleColor.DarkMagenta;
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("[cliDEBUG] - " + Message);
             Console.BackgroundColor = bgc;
             Console.ForegroundColor = fgc;
@@ -123,7 +125,7 @@ namespace Total.CLI
         }
         private static void ShowCLIdetails(cliDataSet cli)
         {
-            if (!cliDebugLevel2) { return; }
+            if (cliDebugLevel < 2) { return; }
             WriteDebugLevel2(new string('=', 100));
             WriteDebugLevel2(String.Format("Switch Name: {0} [{1}])", cli.fullSwitchName, cli.fullAliasName));
             WriteDebugLevel2(new string('-', 48) + "+" + new string('-', 51));
@@ -142,9 +144,9 @@ namespace Total.CLI
             // ================================================================================================================================================
             //  Check for the TotalCLI specific arguments like cliDebugLevelX
             // ------------------------------------------------------------------------------------------------------------------------------------------------
-            cliDebugLevel1 = Environment.CommandLine.Contains("--cliDebugLevel1");
-            cliDebugLevel2 = Environment.CommandLine.Contains("--cliDebugLevel2");
-            cliDebugLevel3 = Environment.CommandLine.Contains("--cliDebugLevel3");
+            if (Environment.CommandLine.Contains("--cliDebugLevel1")) { cliDebugLevel = 1; }
+            if (Environment.CommandLine.Contains("--cliDebugLevel2")) { cliDebugLevel = 2; }
+            if (Environment.CommandLine.Contains("--cliDebugLevel3")) { cliDebugLevel = 3; }
         }
         // ------------------------------------------------------------------------------------------------------------------------------------------------
         //   cli definiton and rule storage
@@ -591,10 +593,21 @@ namespace Total.CLI
             //   Convert the commandline argument string to a list and remove the 1st elelement (image name) and the cliDebug arguments
             //   Also make sure a switch identifier has been set
             // ------------------------------------------------------------------------------------------------------------------------------------------------
-            List<string> argumentList = Environment.GetCommandLineArgs().ToList();
-            argumentList.RemoveAt(0);
-            argumentList.Remove("--cliDebugLevel1");
-            argumentList.Remove("--cliDebugLevel2");
+            List<string> argumentList = new List<string>();
+            string argValueString = "";
+            string[] cmndLineArgs = Environment.GetCommandLineArgs();
+            WriteDebugLevel3("Original argumentlist: [" + string.Join("] [", cmndLineArgs) + "]");
+            for (int i = 1; i < cmndLineArgs.Length; i++)
+            {
+                if (cmndLineArgs[i].StartsWith("--cliDebugLevel")) { continue; }
+                if (!cmndLineArgs[i].StartsWith(cliSwitchIdentifier)) { argValueString += cmndLineArgs[i] + ","; continue; }
+                if (argValueString.Length > 0) { argumentList.Add(argValueString.TrimEnd(',')); argValueString = ""; }
+                argumentList.Add(cmndLineArgs[i]);
+            }
+            // Do not forget to save the last set of argument values (if any!)
+            if (argValueString.Length > 0) { argumentList.Add(argValueString.TrimEnd(',')); argValueString = ""; }
+            string workingArgumentList = ""; foreach (string arg in argumentList) { workingArgumentList += "[" + arg + "] "; }
+            WriteDebugLevel3("Working argumentlist: " + workingArgumentList);
             // ------------------------------------------------------------------------------------------------------------------------------------------------
             //   Now process the remaining arguments. When starting with the switch identifier, get the fullSwitchName and fetch its dataset 
             // ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -665,7 +678,7 @@ namespace Total.CLI
                     cliData.isPresent = true;
                     cliData.isNegated = switchIsNegated;
                     if (!cliData.isNegatable && cliData.isNegated) { WriteError("Switch " + thisArgument + " is not negatable"); }
-                    if (cliData.type == "[bool]") { cliData.hasArgument = true; if (switchIsNegated) { cliData.argumentValue = "False"; } else { cliData.argumentValue = "True"; } }
+                    if (cliData.type == "[bool]")   { cliData.hasArgument = true; if (switchIsNegated) { cliData.argumentValue = "False"; } else { cliData.argumentValue = "True"; } }
                     if (argValue.Length > 0) { cliData.argumentValue = argValue; cliData.hasArgument = true; }
                     switchDictionary[switchName] = cliData;
                     switchFound = true;
